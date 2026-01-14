@@ -1,54 +1,89 @@
-# qr-reader
+# QR Reader (Offline)
 
-This template should help get you started developing with Vue 3 in Vite.
+An **offline QR code reader** that decodes QR codes from **images**. Everything runs **locally in your browser**: drag & drop a screenshot/photo, choose a file, or paste an image from your clipboard.
 
-## Recommended IDE Setup
+## Demo
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- GitHub Pages: `https://avil13.github.io/qr`
 
-## Recommended Browser Setup
+## Features
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+- **Drag & drop** a QR image
+- **File picker** (upload an image)
+- **Paste from clipboard** (Ctrl+V / Cmd+V) if your clipboard contains an image
+- **Copy decoded text** to clipboard
+- **Offline-first / privacy friendly**: no upload, no server-side processing
 
-## Type Support for `.vue` Imports in TS
+## How it works
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+Decoding is done in the browser with a two-step strategy:
 
-## Customize configuration
+1. **Native scanner first**: uses the browser’s built-in [`BarcodeDetector`](https://developer.mozilla.org/en-US/docs/Web/API/BarcodeDetector) when available (usually the most reliable).
+2. **Fallback (no dependencies)**: a custom TypeScript pipeline:
+   - image load + thresholding
+   - finder pattern detection
+   - sampling a QR bit matrix
+   - QR data decoding
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+The core logic lives in `src/lib/` and the UI is in `src/components/QRReader.vue`.
 
-## Project Setup
+## Tech stack
 
-```sh
+- Vue 3 + Vite
+- TypeScript
+- Zero external QR decoding dependencies (custom fallback decoder)
+
+## Getting started
+
+Requirements:
+- Node.js: `^20.19.0` or `>=22.12.0`
+
+Install:
+
+```bash
 npm install
 ```
 
-### Compile and Hot-Reload for Development
+Run locally:
 
-```sh
+```bash
 npm run dev
 ```
 
-### Type-Check, Compile and Minify for Production
+Build:
 
-```sh
+```bash
 npm run build
 ```
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+Preview the production build:
 
-```sh
-npm run test:unit
+```bash
+npm run preview
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+Optional:
 
-```sh
+```bash
+npm run test:unit
 npm run lint
 ```
+
+## Project structure
+
+```text
+src/
+  components/QRReader.vue    # UI: upload / paste / preview / copy result
+  lib/                       # QR decode implementation (native + fallback)
+  pages/HomePage.vue         # Page shell
+  router/                    # Vue Router setup
+```
+
+## Notes / limitations
+
+- This app **reads QR codes from images**. It does not currently scan from a live camera stream.
+- `BarcodeDetector` support varies by browser; the app automatically falls back when it’s not available.
+
+## License
+
+MIT
