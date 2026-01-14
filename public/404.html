@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redirecting…</title>
+    <script>
+      // GitHub Pages serves /404.html for unknown paths. We redirect back to the SPA entry
+      // with the original path encoded in the query string so the app can restore it.
+      (function () {
+        var base = "/qr";
+        var l = window.location;
+        var path = l.pathname;
+
+        if (path.indexOf(base) === 0) path = path.slice(base.length);
+        if (!path) path = "/";
+        if (path.charAt(0) !== "/") path = "/" + path;
+
+        var target =
+          base +
+          "/?p=" +
+          encodeURIComponent(path + l.search + l.hash);
+
+        l.replace(target);
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
