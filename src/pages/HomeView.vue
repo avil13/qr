@@ -18,7 +18,6 @@ import QRReader from '@/components/QRReader.vue';
           </svg>
         </div>
         <h1>QR Scanner</h1>
-        <p class="subtitle">Zero-dependency QR code decoder built with TypeScript</p>
       </header>
 
       <QRReader />

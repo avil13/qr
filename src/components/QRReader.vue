@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { QRCodeReader } from '@/lib/qr-reader';
+import { ref, onMounted, onUnmounted } from 'vue';
+import { QRCodeReader } from '@/lib';
 
 const isDragOver = ref(false);
 const isLoading = ref(false);
@@ -9,6 +9,7 @@ const result = ref<string | null>(null);
 const error = ref<string | null>(null);
 
 const fileInput = ref<HTMLInputElement | null>(null);
+const qrReaderRef = ref<HTMLElement | null>(null);
 
 function triggerFileInput() {
   fileInput.value?.click();
@@ -29,14 +30,20 @@ function handleDrop(e: DragEvent) {
 
   const files = e.dataTransfer?.files;
   if (files && files.length > 0) {
-    handleFile(files[0]);
+    const file = files[0];
+    if (file) {
+      handleFile(file);
+    }
   }
 }
 
 function handleFileSelect(e: Event) {
   const target = e.target as HTMLInputElement;
   if (target.files && target.files.length > 0) {
-    handleFile(target.files[0]);
+    const file = target.files[0];
+    if (file) {
+      handleFile(file);
+    }
   }
 }
 
@@ -80,10 +87,43 @@ function reset() {
     fileInput.value.value = '';
   }
 }
+
+function copyToClipboard(text: string) {
+  navigator.clipboard.writeText(text)
+}
+
+async function handlePaste(e: ClipboardEvent) {
+  e.preventDefault();
+
+  const items = e.clipboardData?.items;
+  if (!items) return;
+
+  // Ищем изображение в буфере обмена
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item && item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (file) {
+        handleFile(file);
+        return;
+      }
+    }
+  }
+}
+
+onMounted(() => {
+  // Добавляем глобальный обработчик paste
+  window.addEventListener('paste', handlePaste);
+});
+
+onUnmounted(() => {
+  // Удаляем обработчик при размонтировании компонента
+  window.removeEventListener('paste', handlePaste);
+});
 </script>
 
 <template>
-  <div class="qr-reader">
+  <div ref="qrReaderRef" class="qr-reader">
     <div
       class="upload-area"
       :class="{ dragover: isDragOver }"
@@ -108,6 +148,7 @@ function reset() {
       <button class="btn" type="button" @click.stop="triggerFileInput">
         Choose File
       </button>
+      <p class="upload-text-secondary">or press Ctrl+V / Cmd+V to paste</p>
       <input
         ref="fileInput"
         type="file"
@@ -142,7 +183,7 @@ function reset() {
             Decoded Successfully
           </div>
           <div class="result-text">{{ result }}</div>
-          <button class="btn-copy" type="button" @click="navigator.clipboard.writeText(result)">
+          <button class="btn-copy" type="button" @click="copyToClipboard(result)">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" />
               <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
