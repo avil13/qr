@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { QRCodeReader } from '@/lib';
+import { QRCodeReader } from "@/lib";
+import { onMounted, onUnmounted, ref, useTemplateRef, watch } from "vue";
 
 const isDragOver = ref(false);
 const isLoading = ref(false);
@@ -8,8 +8,8 @@ const previewUrl = ref<string | null>(null);
 const result = ref<string | null>(null);
 const error = ref<string | null>(null);
 
-const fileInput = ref<HTMLInputElement | null>(null);
-const qrReaderRef = ref<HTMLElement | null>(null);
+const fileInput = useTemplateRef("fileInput");
+const previewRef = useTemplateRef("previewRef");
 
 function triggerFileInput() {
   fileInput.value?.click();
@@ -48,8 +48,8 @@ function handleFileSelect(e: Event) {
 }
 
 async function handleFile(file: File) {
-  if (!file.type.startsWith('image/')) {
-    error.value = 'Please select an image file';
+  if (!file.type.startsWith("image/")) {
+    error.value = "Please select an image file";
     result.value = null;
     return;
   }
@@ -72,7 +72,7 @@ async function handleFile(file: File) {
     const decoded = await qrReader.read(file);
     result.value = decoded;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to decode QR code';
+    error.value = err instanceof Error ? err.message : "Failed to decode QR code";
   } finally {
     isLoading.value = false;
   }
@@ -84,12 +84,12 @@ function reset() {
   error.value = null;
   isLoading.value = false;
   if (fileInput.value) {
-    fileInput.value.value = '';
+    fileInput.value.value = "";
   }
 }
 
 function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text)
+  navigator.clipboard.writeText(text);
 }
 
 async function handlePaste(e: ClipboardEvent) {
@@ -101,7 +101,7 @@ async function handlePaste(e: ClipboardEvent) {
   // Ищем изображение в буфере обмена
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    if (item && item.type.startsWith('image/')) {
+    if (item && item.type.startsWith("image/")) {
       const file = item.getAsFile();
       if (file) {
         handleFile(file);
@@ -111,29 +111,48 @@ async function handlePaste(e: ClipboardEvent) {
   }
 }
 
+// Плавный скролл до preview при появлении результата
+watch(result, async (newValue) => {
+  if (newValue && previewRef.value) {
+    // Ждем следующего тика, чтобы элемент был полностью отрендерен
+    await new Promise((r) => { setTimeout(r, 450); });
+    previewRef.value.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+});
+
 onMounted(() => {
   // Добавляем глобальный обработчик paste
-  window.addEventListener('paste', handlePaste);
+  window.addEventListener("paste", handlePaste);
 });
 
 onUnmounted(() => {
   // Удаляем обработчик при размонтировании компонента
-  window.removeEventListener('paste', handlePaste);
+  window.removeEventListener("paste", handlePaste);
 });
 </script>
 
 <template>
-  <div ref="qrReaderRef" class="qr-reader">
+  <div class="qr-reader">
     <div
       class="upload-area"
-      :class="{ dragover: isDragOver }"
+      :class="{ dragover: isDragOver, 'has-result': !!result }"
       @click="triggerFileInput"
       @dragover="handleDragOver"
       @dragleave="handleDragLeave"
       @drop="handleDrop"
     >
-      <div class="upload-icon">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <div v-if="!result" class="upload-icon">
+        <svg
+          width="64"
+          height="64"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
           <rect x="3" y="3" width="7" height="7" rx="1" />
           <rect x="14" y="3" width="7" height="7" rx="1" />
           <rect x="3" y="14" width="7" height="7" rx="1" />
@@ -143,26 +162,26 @@ onUnmounted(() => {
           <rect x="18" y="18" width="3" height="3" />
         </svg>
       </div>
-      <p class="upload-text">Drag & drop a QR code image here</p>
-      <p class="upload-text-secondary">or</p>
-      <button class="btn" type="button" @click.stop="triggerFileInput">
-        Choose File
-      </button>
-      <p class="upload-text-secondary">or press Ctrl+V / Cmd+V to paste</p>
-      <input
-        ref="fileInput"
-        type="file"
-        accept="image/*"
-        @change="handleFileSelect"
-      />
+      <p v-if="!result" class="upload-text">Drag & drop a QR code image here</p>
+      <p v-if="!result" class="upload-text-secondary">or</p>
+      <button class="btn" type="button" @click.stop="triggerFileInput">Choose File</button>
+      <p v-if="!result" class="upload-text-secondary">or press Ctrl+V / Cmd+V to paste</p>
+      <input ref="fileInput" type="file" accept="image/*" @change="handleFileSelect" />
     </div>
 
     <Transition name="fade">
-      <div v-if="previewUrl" class="preview">
+      <div v-if="previewUrl" ref="previewRef" class="preview">
         <div class="preview-header">
           <span>Preview</span>
           <button class="btn-reset" type="button" @click="reset">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
             Clear
@@ -177,14 +196,28 @@ onUnmounted(() => {
 
         <div v-else-if="result" class="result success">
           <div class="result-label">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M20 6L9 17l-5-5" />
             </svg>
             Decoded Successfully
           </div>
           <div class="result-text">{{ result }}</div>
           <button class="btn-copy" type="button" @click="copyToClipboard(result)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <rect x="9" y="9" width="13" height="13" rx="2" />
               <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
             </svg>
@@ -194,7 +227,14 @@ onUnmounted(() => {
 
         <div v-else-if="error" class="result error">
           <div class="result-label">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <circle cx="12" cy="12" r="10" />
               <path d="M12 8v4M12 16h.01" />
             </svg>
@@ -219,8 +259,13 @@ onUnmounted(() => {
   padding: 48px 32px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.45s cubic-bezier(0.4, 0, 0.2, 1);
   background: var(--color-surface);
+}
+
+.upload-area.has-result {
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .upload-area:hover {
@@ -250,6 +295,7 @@ onUnmounted(() => {
 .upload-text-secondary {
   color: var(--color-text-muted);
   font-size: 14px;
+  margin-top: 16px;
   margin-bottom: 16px;
 }
 
@@ -385,7 +431,7 @@ input[type="file"] {
   font-size: 15px;
   line-height: 1.6;
   word-break: break-word;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
   padding: 12px;
   background: var(--color-bg);
   border-radius: 8px;

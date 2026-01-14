@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import QRReader from '@/components/QRReader.vue';
+import QRReader from "@/components/QRReader.vue";
 </script>
 
 <template>
@@ -7,7 +7,14 @@ import QRReader from '@/components/QRReader.vue';
     <div class="container">
       <header class="hero">
         <div class="logo">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
             <rect x="3" y="3" width="7" height="7" rx="1" />
             <rect x="14" y="3" width="7" height="7" rx="1" />
             <rect x="3" y="14" width="7" height="7" rx="1" />
@@ -22,9 +29,7 @@ import QRReader from '@/components/QRReader.vue';
 
       <QRReader />
 
-      <footer class="footer">
-        <p>Drop any image containing a QR code to decode it instantly</p>
-      </footer>
+      <footer class="footer"></footer>
     </div>
   </main>
 </template>
@@ -62,9 +67,7 @@ import QRReader from '@/components/QRReader.vue';
   border-radius: 20px;
   margin-bottom: 24px;
   color: var(--color-accent);
-  box-shadow:
-    0 0 40px var(--color-accent-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 40px var(--color-accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 h1 {
