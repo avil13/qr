@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { QRCodeReader } from "@/lib";
-import { onMounted, onUnmounted, ref, useTemplateRef, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from "vue";
 
 const isDragOver = ref(false);
 const isLoading = ref(false);
@@ -8,8 +8,18 @@ const previewUrl = ref<string | null>(null);
 const result = ref<string | null>(null);
 const error = ref<string | null>(null);
 
+const isCameraActive = ref(false);
+const stream = ref<MediaStream | null>(null);
+const capturedImageUrl = ref<string | null>(null);
+const capturedFile = ref<File | null>(null);
+
 const fileInput = useTemplateRef("fileInput");
 const previewRef = useTemplateRef("previewRef");
+const videoRef = useTemplateRef("videoRef");
+
+const isHideUnnecessary = computed<boolean>(() => {
+  return !result.value && !isCameraActive.value && !capturedImageUrl.value;
+});
 
 function triggerFileInput() {
   fileInput.value?.click();
@@ -83,6 +93,12 @@ function reset() {
   result.value = null;
   error.value = null;
   isLoading.value = false;
+  stopCamera();
+  if (capturedImageUrl.value) {
+    URL.revokeObjectURL(capturedImageUrl.value);
+    capturedImageUrl.value = null;
+  }
+  capturedFile.value = null;
   if (fileInput.value) {
     fileInput.value.value = "";
   }
@@ -111,11 +127,135 @@ async function handlePaste(e: ClipboardEvent) {
   }
 }
 
+async function startCamera() {
+  // Проверка поддержки API
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    error.value = "Camera is not supported in this browser";
+    return;
+  }
+
+  try {
+    // Запрос доступа к камере (задняя камера на мобильных)
+    const mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+    });
+
+    stream.value = mediaStream;
+    isCameraActive.value = true;
+    error.value = null;
+
+    // Присваиваем поток видео элементу после следующего тика
+    await nextTick();
+    if (videoRef.value) {
+      videoRef.value.srcObject = mediaStream;
+      videoRef.value.play().catch((err) => {
+        console.error("Error playing video:", err);
+      });
+    }
+  } catch (err) {
+    isCameraActive.value = false;
+    if (err instanceof Error) {
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        error.value = "Camera access denied. Please allow camera access and try again.";
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        error.value = "No camera found on this device.";
+      } else {
+        error.value = `Failed to access camera: ${err.message}`;
+      }
+    } else {
+      error.value = "Failed to access camera";
+    }
+  }
+}
+
+function stopCamera() {
+  if (stream.value) {
+    stream.value.getTracks().forEach((track) => track.stop());
+    stream.value = null;
+  }
+  isCameraActive.value = false;
+  if (videoRef.value) {
+    videoRef.value.srcObject = null;
+  }
+}
+
+async function capturePhoto() {
+  if (!videoRef.value || !isCameraActive.value) return;
+
+  const video = videoRef.value;
+  if (video.videoWidth === 0 || video.videoHeight === 0) {
+    error.value = "Video stream is not ready";
+    return;
+  }
+
+  try {
+    // Создаем canvas и рисуем кадр из видео
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      error.value = "Failed to create canvas context";
+      return;
+    }
+
+    ctx.drawImage(video, 0, 0);
+
+    // Конвертируем canvas в Blob, затем в File
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error("Failed to create blob from canvas"));
+          }
+        },
+        "image/jpeg",
+        0.95
+      );
+    });
+
+    const file = new File([blob], `capture-${Date.now()}.jpg`, {
+      type: "image/jpeg",
+    });
+
+    // Создаем URL для предпросмотра
+    capturedImageUrl.value = URL.createObjectURL(blob);
+    capturedFile.value = file;
+
+    // Останавливаем камеру после захвата
+    stopCamera();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Failed to capture photo";
+  }
+}
+
+function useCapturedPhoto() {
+  if (capturedFile.value) {
+    handleFile(capturedFile.value);
+    capturedImageUrl.value = null;
+    capturedFile.value = null;
+  }
+}
+
+function cancelCapture() {
+  if (capturedImageUrl.value) {
+    URL.revokeObjectURL(capturedImageUrl.value);
+    capturedImageUrl.value = null;
+  }
+  capturedFile.value = null;
+  // Возвращаемся к камере
+  startCamera();
+}
+
 // Плавный скролл до preview при появлении результата
 watch(result, async (newValue) => {
   if (newValue && previewRef.value) {
     // Ждем следующего тика, чтобы элемент был полностью отрендерен
-    await new Promise((r) => { setTimeout(r, 450); });
+    await new Promise((r) => {
+      setTimeout(r, 450);
+    });
     previewRef.value.scrollIntoView({
       behavior: "smooth",
       block: "start",
@@ -131,15 +271,25 @@ onMounted(() => {
 onUnmounted(() => {
   // Удаляем обработчик при размонтировании компонента
   window.removeEventListener("paste", handlePaste);
+  // Останавливаем камеру и освобождаем ресурсы
+  stopCamera();
+  if (capturedImageUrl.value) {
+    URL.revokeObjectURL(capturedImageUrl.value);
+  }
 });
 </script>
 
 <template>
   <div class="qr-reader">
     <div
+      v-if="!result"
       class="upload-area"
-      :class="{ dragover: isDragOver, 'has-result': !!result }"
-      @click="triggerFileInput"
+      :class="{
+        dragover: isDragOver,
+        'has-result': !!result,
+        'camera-active': isCameraActive || !!capturedImageUrl,
+      }"
+      @click="!isCameraActive && !capturedImageUrl && triggerFileInput()"
       @dragover="handleDragOver"
       @dragleave="handleDragLeave"
       @drop="handleDrop"
@@ -162,11 +312,62 @@ onUnmounted(() => {
           <rect x="18" y="18" width="3" height="3" />
         </svg>
       </div>
-      <p v-if="!result" class="upload-text">Drag & drop a QR code image here</p>
-      <p v-if="!result" class="upload-text-secondary">or</p>
-      <button class="btn" type="button" @click.stop="triggerFileInput">Choose File</button>
-      <p v-if="!result" class="upload-text-secondary">or press Ctrl+V / Cmd+V to paste</p>
+      <p v-if="isHideUnnecessary" class="upload-text">Drag & drop a QR code image here</p>
+      <p v-if="isHideUnnecessary" class="upload-text-secondary">or</p>
+      <div v-if="isHideUnnecessary" class="button-group">
+        <button class="btn" type="button" @click.stop="triggerFileInput">Choose File</button>
+        <button class="btn btn-camera" type="button" @click.stop="startCamera">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            style="margin-right: 6px"
+          >
+            <path
+              d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+            />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+          Use Camera
+        </button>
+      </div>
+      <p v-if="isHideUnnecessary" class="upload-text-secondary">or press Ctrl+V / Cmd+V to paste</p>
       <input ref="fileInput" type="file" accept="image/*" @change="handleFileSelect" />
+
+      <!-- Camera Preview -->
+      <div v-if="isCameraActive && !capturedImageUrl" class="camera-preview">
+        <video ref="videoRef" autoplay playsinline></video>
+        <div class="camera-controls">
+          <button class="btn btn-capture" type="button" @click.stop="capturePhoto">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="6" fill="currentColor" />
+            </svg>
+          </button>
+          <button class="btn btn-secondary" type="button" @click.stop="stopCamera">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Captured Image Preview -->
+      <div v-if="capturedImageUrl" class="captured-preview">
+        <img :src="capturedImageUrl" alt="Captured photo" />
+        <div class="captured-controls">
+          <button class="btn btn-secondary" type="button" @click.stop="cancelCapture">
+            Retake
+          </button>
+          <button class="btn" type="button" @click.stop="useCapturedPhoto">Use Photo</button>
+        </div>
+      </div>
     </div>
 
     <Transition name="fade">
@@ -469,5 +670,111 @@ input[type="file"] {
 .fade-leave-to {
   opacity: 0;
   transform: translateY(-10px);
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn-camera {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-preview {
+  margin-top: 16px;
+  width: 100%;
+}
+
+.camera-preview video {
+  width: 100%;
+  max-height: 400px;
+  border-radius: 12px;
+  background: var(--color-bg);
+  object-fit: contain;
+}
+
+.camera-controls {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+  align-items: center;
+}
+
+.btn-capture {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  border: 4px solid var(--color-surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn-capture:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px var(--color-accent-shadow);
+}
+
+.btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.btn-secondary:hover {
+  background: var(--color-surface-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.captured-preview {
+  margin-top: 16px;
+  width: 100%;
+}
+
+.captured-preview img {
+  width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 16px;
+}
+
+.captured-controls {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+@media (max-width: 480px) {
+  .button-group {
+    flex-direction: column;
+  }
+
+  .button-group .btn {
+    width: 100%;
+  }
+
+  .camera-controls {
+    flex-direction: column;
+  }
+
+  .captured-controls {
+    flex-direction: column;
+  }
+
+  .captured-controls .btn,
+  .camera-controls .btn-secondary {
+    width: 100%;
+  }
 }
 </style>
