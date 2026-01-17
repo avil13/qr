@@ -2,10 +2,7 @@
  * Main QR Code Reader Class
  */
 
-import { ImageLoader } from './image-processing';
-import { FinderPatternDetector } from './detection';
-import { QRSampler } from './extraction';
-import { QRDataDecoder } from './decoder';
+import { readBarcodes, type ReaderOptions } from "zxing-wasm/reader";
 
 // Check for native BarcodeDetector support
 declare global {
@@ -33,7 +30,7 @@ export class QRCodeReader {
   }
 
   private async readWithNativeDetector(file: File): Promise<string | null> {
-    const detector = new window.BarcodeDetector!({ formats: ['qr_code'] });
+    const detector = new window.BarcodeDetector!({ formats: ["qr_code"] });
     const imageBitmap = await createImageBitmap(file);
 
     try {
@@ -48,40 +45,50 @@ export class QRCodeReader {
     return null;
   }
 
-  private async readWithCustomDecoder(file: File): Promise<string> {
-    const image = await ImageLoader.loadFromFile(file);
+  private async fileToImageData(file: File): Promise<ImageData> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
 
-    // Try with multiple threshold values
-    const thresholds = [
-      image.threshold, // Otsu's threshold
-      image.threshold - 20,
-      image.threshold + 20,
-      100,
-      127,
-      150,
-    ];
-
-    for (const threshold of thresholds) {
-      image.setThreshold(threshold);
-      const detector = new FinderPatternDetector();
-      const patterns = detector.findPatterns(image);
-
-      if (patterns.length >= 3) {
-        try {
-          const sampler = new QRSampler();
-          const matrix = sampler.sample(image, patterns);
-
-          const decoder = new QRDataDecoder();
-          const result = decoder.decode(matrix);
-          if (result && result !== 'Unsupported QR mode' && result.length > 0) {
-            return result;
-          }
-        } catch {
-          // Try next threshold
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Could not get canvas context"));
+          return;
         }
-      }
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, img.width, img.height);
+        resolve(imageData);
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Failed to load image"));
+      };
+
+      img.src = url;
+    });
+  }
+
+  private async readWithCustomDecoder(file: File): Promise<string> {
+    const options: ReaderOptions = {
+      formats: ["QRCode"],
+      tryHarder: true,
+    };
+
+    // Convert File to ImageData for more reliable processing
+    const imageData = await this.fileToImageData(file);
+    const results = await readBarcodes(imageData, options);
+    const item = results[0];
+
+    if (item?.isValid) {
+      return item.text;
     }
 
-    throw new Error('Could not find QR code in image');
+    throw new Error(item?.error || "Could not find QR code in image");
   }
 }
