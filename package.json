@@ -7,11 +7,12 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "DEBUG='vite-ssg:*' vite",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "test:unit": "vitest",
-    "build-only": "vite build",
+    "build-only": "vite-ssg build",
+    "build-only:old": "vite build",
     "type-check": "vue-tsc --build",
     "lint": "run-s lint:*",
     "lint:oxlint": "oxlint . --fix",
@@ -38,8 +39,10 @@
     "npm-run-all2": "^8.0.4",
     "oxlint": "~1.38.0",
     "typescript": "~5.9.3",
+    "unplugin-vue-router": "^0.19.2",
     "vite": "beta",
     "vite-plugin-vue-devtools": "^8.0.5",
+    "vite-ssg": "^28.2.2",
     "vitest": "^4.0.16",
     "vue-tsc": "^3.2.2"
   }

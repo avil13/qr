@@ -26,4 +26,12 @@ export default defineConfigWithVueTs(
   },
 
   ...pluginOxlint.configs['flat/recommended'],
+
+  {
+    name: 'app/pages-override',
+    files: ['src/pages/**/*.vue'],
+    rules: {
+      'vue/multi-word-component-names': 'off',
+    },
+  },
 )

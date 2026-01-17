@@ -407,7 +407,7 @@ onUnmounted(() => {
             >
               <path d="M20 6L9 17l-5-5" />
             </svg>
-            Decoded Successfully
+            Decoded
           </div>
           <div class="result-text">{{ result }}</div>
           <button class="btn-copy" type="button" @click="copyToClipboard(result)">

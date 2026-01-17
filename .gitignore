@@ -13,6 +13,9 @@ dist
 dist-ssr
 coverage
 *.local
+qr/*
+
+.vite-ssg-temp/
 
 # Editor directories and files
 .vscode/*
