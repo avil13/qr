@@ -2,7 +2,7 @@
  * Main QR Code Reader Class
  */
 
-import { readBarcodes, type ReaderOptions } from "zxing-wasm/reader";
+import type { ReaderOptions } from "zxing-wasm/reader";
 
 // Check for native BarcodeDetector support
 declare global {
@@ -75,10 +75,31 @@ export class QRCodeReader {
   }
 
   private async readWithCustomDecoder(file: File): Promise<string> {
-    const options: ReaderOptions = {
-      formats: ["QRCode"],
+    // Dynamically import zxing-wasm only when needed
+    const zxing = await import("zxing-wasm/reader");
+    const { readBarcodes, prepareZXingModule } = zxing;
+
+    // Configure zxing-wasm to load WASM from bundle instead of CDN
+    // WASM file is copied to public/wasm/ directory
+    prepareZXingModule({
+      overrides: {
+        locateFile: (path: string, prefix: string) => {
+          if (path.endsWith(".wasm")) {
+            // Use WASM file from public directory (bundled with the app)
+            const wasmFileName = path.split("/").pop() || path;
+            const baseUrl = import.meta.env.BASE_URL || "/";
+            const baseNoSlash = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+            return `${baseNoSlash}/wasm/${wasmFileName}`;
+          }
+          return prefix + path;
+        },
+      },
+    });
+
+    const options = {
+      formats: ["QRCode"] as ["QRCode"],
       tryHarder: true,
-    };
+    } satisfies ReaderOptions;
 
     // Convert File to ImageData for more reliable processing
     const imageData = await this.fileToImageData(file);
