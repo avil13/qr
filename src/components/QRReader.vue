@@ -294,24 +294,6 @@ onUnmounted(() => {
       @dragleave="handleDragLeave"
       @drop="handleDrop"
     >
-      <div v-if="!result" class="upload-icon">
-        <svg
-          width="64"
-          height="64"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-        >
-          <rect x="3" y="3" width="7" height="7" rx="1" />
-          <rect x="14" y="3" width="7" height="7" rx="1" />
-          <rect x="3" y="14" width="7" height="7" rx="1" />
-          <rect x="14" y="14" width="3" height="3" />
-          <rect x="18" y="14" width="3" height="3" />
-          <rect x="14" y="18" width="3" height="3" />
-          <rect x="18" y="18" width="3" height="3" />
-        </svg>
-      </div>
       <p v-if="isHideUnnecessary" class="upload-text">Drag & drop a QR code image here</p>
       <p v-if="isHideUnnecessary" class="upload-text-secondary">or</p>
       <div v-if="isHideUnnecessary" class="button-group">
